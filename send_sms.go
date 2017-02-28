@@ -1,7 +1,9 @@
 package transmitsms
 
 import (
+	"fmt"
 	"github.com/gorilla/schema"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,6 +22,12 @@ type SendSMSRequest struct {
 	RepliesToEmail string         `schema:"replies_to_email,omitempty"`
 	FromShared     bool           `schema:"-"`
 	CountryCode    string         `schema:"countrycode,omitempty"`
+}
+
+type SendSMSResponse struct {
+	MessageId  string  `json:"message_id"`
+	Recipients int     `json:"recipients"`
+	Cost       float32 `json:"cost"`
 }
 
 func (r *SendSMSRequest) RequestPath() string {
@@ -48,5 +56,21 @@ func (r *SendSMSRequest) ToValues() (v url.Values, err error) {
 }
 
 func (r *SendSMSRequest) DecodeResponse(hresp *http.Response) (resp interface{}, err error) {
-	return nil, nil
+	rawbody, err := ioutil.ReadAll(hresp.Body)
+	hresp.Body.Close()
+
+	if hresp.StatusCode != 200 {
+		e := new(ApiError)
+		e.HttpCode = hresp.StatusCode
+		parts := strings.SplitN(hresp.Status, " ", 2)
+		if len(parts) > 1 {
+			e.Message = parts[1]
+		} else {
+			e.Message = fmt.Sprintf("HTTP Error %d", e.HttpCode)
+		}
+		e.ResponseBody = string(rawbody)
+
+		return nil, e
+	}
+	return rawbody, nil
 }
