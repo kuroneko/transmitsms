@@ -2,7 +2,7 @@ package transmitsms
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -34,7 +34,7 @@ type SendableRequest interface {
 
 // newRequest creates a empty http.Request object with appropriate
 // authorisation and TLS settings to communicate with the TransmitSMS API.
-func (sms *SMSApi) newRequest(method, subPath string) (req *http.Request, err error) {
+func (sms *SMSApi) newRequest(method, subPath string, body io.Reader) (req *http.Request, err error) {
 	baseUrl, err := url.Parse(sms.BaseURL)
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func (sms *SMSApi) newRequest(method, subPath string) (req *http.Request, err er
 	if err != nil {
 		return nil, err
 	}
-	req, err = http.NewRequest(method, reqUrl.String(), nil)
+	req, err = http.NewRequest(method, reqUrl.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -57,14 +57,11 @@ func (sms *SMSApi) Send(r SendableRequest) (resp interface{}, err error) {
 	if err != nil {
 		return nil, err
 	}
-	req, err := sms.newRequest("POST", r.RequestPath())
+	req, err := sms.newRequest("POST", r.RequestPath(), strings.NewReader(v.Encode()))
 	if err != nil {
 		return nil, err
 	}
-	// wrap the form values in a string reader.
-	vReader := strings.NewReader(v.Encode())
-	// wrap the stringreader in a nopcloser, and use that for the request body.
-	req.Body = ioutil.NopCloser(vReader)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	hresp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err

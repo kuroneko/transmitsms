@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -13,7 +14,7 @@ import (
 type SendSMSRequest struct {
 	Message        string         `schema:"message"`
 	To             []string       `schema:"-"`
-	ListId         *int           `schema:"list_id,omitempty"`
+	ListId         *int           `schema:"-"`
 	From           string         `schema:"from,omitempty"`
 	SendAt         *time.Time     `schema:"-"`
 	DlrCallback    string         `schema:"dlr_callback,omitempty"`
@@ -39,13 +40,26 @@ func (r *SendSMSRequest) ToValues() (v url.Values, err error) {
 	enc := schema.NewEncoder()
 	err = enc.Encode(r, v)
 	if err != nil {
-		return v, err
+		me, ok := err.(schema.MultiError)
+		if ok {
+			if len(me) != 0 {
+				return v, err
+			}
+			// else if we're here, it's the lame gorilla MultiError killing us.  gah.
+			// continue as if nothing went wrong. >_<
+			err = nil
+		} else {
+			return v, err
+		}
 	}
 	// manual encoding time!
 	if r.To == nil {
 		return v, ErrMalformedRequest
 	}
 	v.Set("to", strings.Join(r.To, ","))
+	if r.ListId != nil {
+		v.Set("list_id", strconv.Itoa(*r.ListId))
+	}
 	if r.SendAt != nil {
 		v.Set("send_at", r.SendAt.UTC().Format(SmsTimestampFormat))
 	}
